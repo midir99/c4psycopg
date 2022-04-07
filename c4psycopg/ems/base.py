@@ -1,4 +1,4 @@
-from typing import Any, Optional, Protocol, Union, TypeVar
+from typing import Any, Optional, Protocol, TypeVar, Union
 
 from psycopg.rows import Row, RowFactory
 
@@ -9,6 +9,7 @@ T = TypeVar("T")
 
 class EMProto(Protocol):
     """Defines the attributes and methods that Entity Manager classes must implement."""
+
     table: str
     pk: T
     columns: tuple[str, ...]
@@ -56,4 +57,7 @@ class EMProto(Protocol):
         *,
         row_factory=None,
     ) -> list[Row]:
+        ...
+
+    def delete_by_id(self, pk, conn, *, row_factory=None) -> Optional[Row]:
         ...

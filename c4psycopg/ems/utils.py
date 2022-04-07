@@ -2,9 +2,8 @@ import functools
 from collections.abc import Container
 from typing import Any, Callable, TypeVar
 
-from typing_extensions import Concatenate, ParamSpec
-
 from psycopg import sql
+from typing_extensions import Concatenate, ParamSpec
 
 from . import base
 

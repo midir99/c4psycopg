@@ -1,8 +1,8 @@
-from collections.abc import Iterable
 import functools
+from collections.abc import Iterable
 from typing import Any, Callable, ClassVar, Optional, Type, TypeVar, Union
 
-from typing_extensions import ParamSpec, Concatenate
+from typing_extensions import Concatenate, ParamSpec
 
 try:
     import psycopg
@@ -14,41 +14,44 @@ except ImportError as e:
     raise e from e
 
 T = TypeVar("T")
-P = ParamSpec('P')
+P = ParamSpec("P")
 
 
 # TODO: add an optional where to delete, update, select
 # TODO: "many" queries create many dicts because they need to insert data, maybe we could
-# optimi that part using tuples
-# TODO: add the row factory as an attribute to each function
+# optimi that part using tuples DONE
+# TODO: add the row factory as an attribute to each function DONE
 # TODO: create and create_many function have 2 responsabilities: adding defaults and saving object,
 # create a decorator to add defaults to entities
 # TODO: check what is faster execute_many or using a BIG sql query with
-# TODO: we will use IN in select many, so query must be generated
-# TODO: test if we can use tuples with POSTGRES IN
-# TODO: consider using pk instead of id
-# TODO: extract static methods from EM
-# TODO: consider separating EM pk and EM composite pk, maybe EM composite pk can inherit EM pk
+# TODO: we will use IN in select many, so query must be generated DONE
+# TODO: test if we can use tuples with POSTGRES IN DONE
+# TODO: consider using pk instead of id DONE
+# TODO: extract static methods from EM DONE
+# TODO: consider separating EM pk and EM composite pk, maybe EM composite pk can inherit EM pk DONE
 # TODO: think about a way to support COPY to create many entities
 # TODO: evaluate generators vs tuples when using many operations
 # TODO: add many validations in the init method
 # TODO: add a attribute: row_factory, and add it as a parameter in every function,
 # if row_facotry in fucntion is None, use the class attribute
-# psycopg.rows.RowFactory and psycopg.rows.RowFactory
-# TODO: find_many_by_id must offer a where, offset and limit clauses, also order by
-# TODO: switch to python 3.10, this library will only work on Python 3.10
+# psycopg.rows.RowFactory and psycopg.rows.RowFactory DONE
+# TODO: find_many_by_id must offer a where, offset and limit clauses, also order by DONE
+# TODO: this library must work for python 3.9
+# TODO: make a parser for simple order by clauses, so users can have a fancier interface
+# TODO: maybe it would be better to provide a function to generate order by clauses THIS ONE
 
 EntityData = dict[str, Any]
 ID = Union[str, int]
 
 
-def add_defaults(columns: Iterable[str], entity_keys: Iterable[str]) -> dict[str, sql.SQL]:
+def add_defaults(
+    columns: Iterable[str], entity_keys: Iterable[str]
+) -> dict[str, sql.SQL]:
     return {column: sql.DEFAULT for column in columns if column not in entity_keys}
 
 
 def id2dict(
-    entity_id: tuple[str, ...],
-    id_: Union[ID, tuple[ID, ...]]
+    entity_id: tuple[str, ...], id_: Union[ID, tuple[ID, ...]]
 ) -> dict[str, Union[int, str]]:
     if isinstance(id_, (int, str)):
         new_id = {entity_id[0]: id_}
@@ -103,6 +106,7 @@ def prepare_id_arg(func: Callable[Concatenate["EM", ID, P], T]):
             em_instance = args[0]  # self
             args[1] = id2dict(em_instance, args[1])
         return func(*args, *kwargs)
+
     return wrapper
 
 
@@ -124,17 +128,10 @@ class EM:
         "_select_many_by_pk_query",
     )
 
-    def __init__(
-        self,
-        table: str,
-        pk: str,
-        columns: tuple[str, ...]
-    ) -> None:
+    def __init__(self, table: str, pk: str, columns: tuple[str, ...]) -> None:
         self.table = table
         self.pk = pk
         self.columns = (pk,) + columns
-
-        self._select_by_pk_query =
 
     def describe(self) -> str:
         """Returns a string that describes the queries used to operate the database."""
@@ -194,9 +191,7 @@ class EM:
             ...
 
 
-
 class CPEM(EM):
-
     def dict2pk(self, dict_: dict[str, Any]) -> tuple[str, ...]:
         for pkc in self.pk:
             dict_[pkc]
@@ -259,14 +254,10 @@ class Entity(abc.ABC):
         cls._init_inserts()
         entity.update(cls._defaults(entity.keys()))
 
-
-
-
-
-
-
     @classmethod
-    def create_many(cls: Type[T], entities: Iterable[dict[str, Any]], returning=False) -> Union[Iterable[T], int]:
+    def create_many(
+        cls: Type[T], entities: Iterable[dict[str, Any]], returning=False
+    ) -> Union[Iterable[T], int]:
         pass
 
     @classmethod
@@ -274,7 +265,9 @@ class Entity(abc.ABC):
         pass
 
     @classmethod
-    def find_many_by_id(cls: Type[T], id_list: Iterable[Any], returning=False) -> Union[Iterable[T], int]:
+    def find_many_by_id(
+        cls: Type[T], id_list: Iterable[Any], returning=False
+    ) -> Union[Iterable[T], int]:
         pass
 
     @classmethod
@@ -282,7 +275,9 @@ class Entity(abc.ABC):
         pass
 
     @classmethod
-    def update_many_by_id(cls: Type[T], entities: Iterable[dict[str, Any]], returning=False) -> Union[Iterable[T], int]:
+    def update_many_by_id(
+        cls: Type[T], entities: Iterable[dict[str, Any]], returning=False
+    ) -> Union[Iterable[T], int]:
         pass
 
     @classmethod
@@ -290,5 +285,7 @@ class Entity(abc.ABC):
         pass
 
     @classmethod
-    def delete_many_by_id(cls: Type[T], id_list: Iterable[Any], returning=False) -> Union[Iterable[T], int]:
+    def delete_many_by_id(
+        cls: Type[T], id_list: Iterable[Any], returning=False
+    ) -> Union[Iterable[T], int]:
         pass

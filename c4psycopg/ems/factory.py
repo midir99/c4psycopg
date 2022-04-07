@@ -1,6 +1,6 @@
 from typing import Union
 
-from . import base, em, cpkem
+from . import base, cpkem, em
 
 
 def entitymanager(

@@ -26,9 +26,8 @@ UPDATE store SET name = %(name)s WHERE id = %(store_id)s;
 INSERT INTO customer (first_name, email) VALUES (%s, %s);
 """
 
-from collections.abc import Iterable
 import re
-
+from collections.abc import Iterable
 
 _QUERY_NAME_DEFINITION_PATTERN = re.compile(r"--\s*name\s*:\s*")
 _DOC_COMMENT_PATTERN = re.compile(r"\s*--\s*(.*)$")
@@ -56,7 +55,9 @@ def _extract_sql(lines: Iterable[str]) -> str:
       A string containing the SQL code.
     """
     return "".join(
-        f"{sql_line}\n" for sql_line in lines if not _DOC_COMMENT_PATTERN.match(sql_line)
+        f"{sql_line}\n"
+        for sql_line in lines
+        if not _DOC_COMMENT_PATTERN.match(sql_line)
     )
 
 

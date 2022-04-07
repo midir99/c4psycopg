@@ -7,12 +7,12 @@ README = (HERE / "README.md").read_text(encoding="UTF-8")
 
 
 setuptools.setup(
-    name="e4psycopg",
+    name="c4psycopg",
     version="1.0.0",
     description="Generate SQL statements to use with psycopg.",
     long_description=README,
     long_description_content_type="text/markdown",
-    url="https://github.com/midir99/e4psycopg",
+    url="https://github.com/midir99/c4psycopg",
     author="midir99",
     author_email="midir99@protonmail.com",
     license="MIT",
@@ -27,7 +27,7 @@ setuptools.setup(
     install_requires=["feedparser", "html2text"],
     entry_points={
         "console_scripts": [
-            "realpython=e4psycopg.cli:main",
+            "realpython=c4psycopg.cli:main",
         ]
     },
 )

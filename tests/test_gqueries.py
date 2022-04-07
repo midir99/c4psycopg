@@ -1,17 +1,10 @@
-from psycopg import sql
 import pytest
 
-from e4psycopg import (
-    rows_with_phs,
-    csplaceholders,
-    csidentifiers,
-    insert,
-    insert_many,
-    select_by_pk,
-    select_many_by_pk,
-    select_by_cpk,
-    select_many_by_cpk,
-)
+from c4psycopg.queries import (commas, csidentifiers, csplaceholders,
+                               delete_by_cpk, delete_by_pk, delete_many_by_cpk,
+                               delete_many_by_pk, insert, insert_many, ob,
+                               rows_with_phs, select_by_cpk, select_by_pk,
+                               select_many_by_cpk, select_many_by_pk)
 
 
 @pytest.mark.parametrize(
@@ -56,6 +49,38 @@ def test_csplaceholders(postgresql, columns, named_phs, expected):
 )
 def test_csidentifiers(postgresql, columns, expected):
     result = csidentifiers(columns).as_string(postgresql)
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    "column,order,nulls,expected",
+    [
+        ("name", None, None, '"name"'),
+        ("email", "ASC", None, '"email" ASC'),
+        ("username", "DESC", "FIRST", '"username" DESC NULLS FIRST'),
+        ("last_name", None, "LAST", '"last_name" NULLS LAST'),
+    ],
+)
+def test_ob(postgresql, column, order, nulls, expected):
+    result = ob(column, order=order, nulls=nulls).as_string(postgresql)
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    "obs,expected",
+    [
+        (
+            (ob("username"), ob("email", "ASC"), ob("name", nulls="LAST")),
+            '"username","email" ASC,"name" NULLS LAST',
+        ),
+        (
+            (ob("username", "DESC"), ob("email")),
+            '"username" DESC,"email"',
+        ),
+    ],
+)
+def test_commas(postgresql, obs, expected):
+    result = commas(*obs).as_string(postgresql)
     assert result == expected
 
 
@@ -123,7 +148,7 @@ def test_insert_many(postgresql, table, columns, qty, returning, expected):
 
 
 @pytest.mark.parametrize(
-    "table,pk_column,columns,named_ph,expected",
+    "table,pk_column,columns,named_phs,expected",
     [
         (
             "customer",
@@ -143,15 +168,15 @@ def test_insert_many(postgresql, table, columns, qty, returning, expected):
         ),
     ],
 )
-def test_select_by_pk(postgresql, table, pk_column, columns, named_ph, expected):
-    result = select_by_pk(table, pk_column, columns, named_ph=named_ph).as_string(
+def test_select_by_pk(postgresql, table, pk_column, columns, named_phs, expected):
+    result = select_by_pk(table, pk_column, columns, named_phs=named_phs).as_string(
         postgresql
     )
     assert result == expected
 
 
 @pytest.mark.parametrize(
-    "table,pk_column,columns,order_by,limit,offset,named_ph,expected",
+    "table,pk_column,columns,order_by,limit,offset,named_phs,expected",
     [
         (
             "customer",
@@ -179,40 +204,34 @@ def test_select_by_pk(postgresql, table, pk_column, columns, named_ph, expected)
             "customer",
             "customerid",
             ("customerid", "name", "email"),
-            sql.SQL("{}, {} ASC").format(
-                sql.Identifier("name"), sql.Identifier("email")
-            ),
+            commas(ob("name"), ob("email", "ASC")),
             None,
             None,
             False,
             'SELECT "customerid","name","email" FROM "customer" WHERE "customerid" = '
-            'ANY(%s) ORDER BY "name", "email" ASC',
+            'ANY(%s) ORDER BY "name","email" ASC',
         ),
         (
             "customer",
             "customerid",
             ("customerid", "name", "email"),
-            sql.SQL("{}, {} ASC").format(
-                sql.Identifier("name"), sql.Identifier("email")
-            ),
+            commas(ob("name"), ob("email", "ASC")),
             100,
             None,
             False,
             'SELECT "customerid","name","email" FROM "customer" WHERE "customerid" = '
-            'ANY(%s) ORDER BY "name", "email" ASC LIMIT 100',
+            'ANY(%s) ORDER BY "name","email" ASC LIMIT 100',
         ),
         (
             "customer",
             "customerid",
             ("customerid", "name", "email"),
-            sql.SQL("{}, {} ASC").format(
-                sql.Identifier("name"), sql.Identifier("email")
-            ),
+            commas(ob("name"), ob("email", "ASC")),
             100,
             500,
             False,
             'SELECT "customerid","name","email" FROM "customer" WHERE "customerid" = '
-            'ANY(%s) ORDER BY "name", "email" ASC LIMIT 100 OFFSET 500',
+            'ANY(%s) ORDER BY "name","email" ASC LIMIT 100 OFFSET 500',
         ),
         (
             "customer",
@@ -235,7 +254,7 @@ def test_select_many_by_pk(
     order_by,
     limit,
     offset,
-    named_ph,
+    named_phs,
     expected,
 ):
     result = select_many_by_pk(
@@ -245,13 +264,13 @@ def test_select_many_by_pk(
         order_by=order_by,
         limit=limit,
         offset=offset,
-        named_ph=named_ph,
+        named_phs=named_phs,
     ).as_string(postgresql)
     assert result == expected
 
 
 @pytest.mark.parametrize(
-    "table,pk_columns,columns,named_ph,expected",
+    "table,pk_columns,columns,named_phs,expected",
     [
         (
             "course_grades",
@@ -272,8 +291,8 @@ def test_select_many_by_pk(
         ),
     ],
 )
-def test_select_by_cpk(postgresql, table, pk_columns, columns, named_ph, expected):
-    result = select_by_cpk(table, pk_columns, columns, named_ph=named_ph).as_string(
+def test_select_by_cpk(postgresql, table, pk_columns, columns, named_phs, expected):
+    result = select_by_cpk(table, pk_columns, columns, named_phs=named_phs).as_string(
         postgresql
     )
     assert result == expected
@@ -298,7 +317,7 @@ def test_select_by_cpk(postgresql, table, pk_columns, columns, named_ph, expecte
             ("quarter_id", "course_id", "student_id"),
             ("quarter_id", "course_id", "student_id", "grades"),
             1,
-            sql.SQL("{} DESC").format(sql.Identifier("grades")),
+            ob("grades", "DESC"),
             None,
             None,
             'SELECT "quarter_id","course_id","student_id","grades" FROM "course_grades"'
@@ -310,7 +329,7 @@ def test_select_by_cpk(postgresql, table, pk_columns, columns, named_ph, expecte
             ("quarter_id", "course_id", "student_id"),
             ("quarter_id", "course_id", "student_id", "grades"),
             2,
-            sql.SQL("{} DESC").format(sql.Identifier("grades")),
+            ob("grades", "DESC"),
             4,
             None,
             'SELECT "quarter_id","course_id","student_id","grades" FROM "course_grades"'
@@ -322,7 +341,7 @@ def test_select_by_cpk(postgresql, table, pk_columns, columns, named_ph, expecte
             ("quarter_id", "course_id", "student_id"),
             ("quarter_id", "course_id", "student_id", "grades"),
             1,
-            sql.SQL("{} DESC").format(sql.Identifier("grades")),
+            ob("grades", "DESC"),
             4,
             100,
             'SELECT "quarter_id","course_id","student_id","grades" FROM "course_grades"'
@@ -361,5 +380,180 @@ def test_select_many_by_cpk(
         order_by=order_by,
         limit=limit,
         offset=offset,
+    ).as_string(postgresql)
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    "table,pk_column,columns,returning,named_phs,expected",
+    [
+        (
+            "customer",
+            "customerid",
+            ("customerid", "name", "email"),
+            False,
+            False,
+            'DELETE FROM "customer" WHERE "customerid" = %s',
+        ),
+        (
+            "customer",
+            "customerid",
+            ("customerid", "name", "email"),
+            True,
+            False,
+            'DELETE FROM "customer" WHERE "customerid" = %s RETURNING '
+            '"customerid","name","email"',
+        ),
+        (
+            "customer",
+            "customerid",
+            ("customerid", "name", "email"),
+            True,
+            True,
+            'DELETE FROM "customer" WHERE "customerid" = %(customerid)s RETURNING '
+            '"customerid","name","email"',
+        ),
+    ],
+)
+def test_delete_by_pk(
+    postgresql, table, pk_column, columns, returning, named_phs, expected
+):
+    result = delete_by_pk(
+        table,
+        pk_column,
+        columns,
+        returning,
+        named_phs,
+    ).as_string(postgresql)
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    "table,pk_column,columns,returning,named_phs,expected",
+    [
+        (
+            "customer",
+            "customerid",
+            ("customerid", "name", "email"),
+            False,
+            False,
+            'DELETE FROM "customer" WHERE "customerid" = ANY(%s)',
+        ),
+        (
+            "customer",
+            "customerid",
+            ("customerid", "name", "email"),
+            True,
+            False,
+            'DELETE FROM "customer" WHERE "customerid" = ANY(%s) RETURNING '
+            '"customerid","name","email"',
+        ),
+        (
+            "customer",
+            "customerid",
+            ("customerid", "name", "email"),
+            True,
+            True,
+            'DELETE FROM "customer" WHERE "customerid" = ANY(%(customerid)s) RETURNING '
+            '"customerid","name","email"',
+        ),
+    ],
+)
+def test_delete_many_by_pk(
+    postgresql,
+    table,
+    pk_column,
+    columns,
+    returning,
+    named_phs,
+    expected,
+):
+    result = delete_many_by_pk(
+        table,
+        pk_column,
+        columns,
+        returning=returning,
+        named_phs=named_phs,
+    ).as_string(postgresql)
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    "table,pk_columns,columns,returning,named_phs,expected",
+    [
+        (
+            "course_grades",
+            ("quarter_id", "course_id", "student_id"),
+            ("quarter_id", "course_id", "student_id", "grades"),
+            False,
+            False,
+            'DELETE FROM "course_grades" WHERE ("quarter_id","course_id","student_id") = '
+            "(%s,%s,%s)",
+        ),
+        (
+            "course_grades",
+            ("quarter_id", "course_id", "student_id"),
+            ("quarter_id", "course_id", "student_id", "grades"),
+            True,
+            False,
+            'DELETE FROM "course_grades" WHERE ("quarter_id","course_id","student_id") = '
+            '(%s,%s,%s) RETURNING "quarter_id","course_id","student_id","grades"',
+        ),
+        (
+            "course_grades",
+            ("quarter_id", "course_id", "student_id"),
+            ("quarter_id", "course_id", "student_id", "grades"),
+            True,
+            True,
+            'DELETE FROM "course_grades" WHERE ("quarter_id","course_id","student_id") = '
+            "(%(quarter_id)s,%(course_id)s,%(student_id)s) RETURNING "
+            '"quarter_id","course_id","student_id","grades"',
+        ),
+    ],
+)
+def test_delete_by_cpk(
+    postgresql,
+    table,
+    pk_columns,
+    columns,
+    returning,
+    named_phs,
+    expected,
+):
+    result = delete_by_cpk(
+        table, pk_columns, columns, returning=returning, named_phs=named_phs
+    ).as_string(postgresql)
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    "table,pk_columns,columns,qty,returning,expected",
+    [
+        (
+            "course_grades",
+            ("quarter_id", "course_id", "student_id"),
+            ("quarter_id", "course_id", "student_id", "grades"),
+            2,
+            False,
+            'DELETE FROM "course_grades" WHERE ("quarter_id","course_id","student_id") '
+            "IN ((%s,%s,%s),(%s,%s,%s))",
+        ),
+        (
+            "course_grades",
+            ("quarter_id", "course_id", "student_id"),
+            ("quarter_id", "course_id", "student_id", "grades"),
+            3,
+            True,
+            'DELETE FROM "course_grades" WHERE ("quarter_id","course_id","student_id") '
+            "IN ((%s,%s,%s),(%s,%s,%s),(%s,%s,%s)) RETURNING "
+            '"quarter_id","course_id","student_id","grades"',
+        ),
+    ],
+)
+def test_delete_many_by_cpk(
+    postgresql, table, pk_columns, columns, qty, returning, expected
+):
+    result = delete_many_by_cpk(
+        table, pk_columns, columns, qty=qty, returning=returning
     ).as_string(postgresql)
     assert result == expected

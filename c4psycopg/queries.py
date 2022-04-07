@@ -3,8 +3,8 @@ from typing import Literal, Optional
 
 from psycopg import sql
 
-COLUMNS_ORDERING = Literal["ASC", "DESC"]
-NULLS_ORDERING = Literal["FIRST", "LAST"]
+COLUMNS_ORDER = Literal["ASC", "DESC"]
+NULLS_ORDER = Literal["FIRST", "LAST"]
 
 
 @functools.cache
@@ -76,16 +76,60 @@ def csidentifiers(columns: tuple[str, ...]) -> sql.Composed:
 @functools.cache
 def ob(
     column: str,
-    ordering: Optional[COLUMNS_ORDERING] = None,
-    nulls: Optional[NULLS_ORDERING] = None,
+    order: Optional[COLUMNS_ORDER] = None,
+    nulls: Optional[NULLS_ORDER] = None,
 ) -> sql.Composed:
+    """Generates a PostgreSQL sort expression to use it in an ORDER BY clause.
+
+    Args:
+      column: The name of the column that will be used to generate the sort expression.
+      order: They KEYWORD (ASC or DESC) that will follow the column name, used to
+        describe the sort direction to ascending or descending.
+      nulls: If specified, NULLS FIRST or NULLS LAST is appended to the end of the sort
+        expression.
+
+    Returns:
+      A psycopg.sql.Composed constructed with the parameters of the function. Here are
+      some examples:
+
+      by_name = ob("name")
+      by_email_asc = ob("email", order="ASC")
+      by_username_desc_nulls_first = ob("username", order="DESC", nulls="FIRST")
+      by_last_name_nulls_last = ob("last_name", nulls="LAST")
+      print(by_name)
+      print(by_email_asc)
+      print(by_username_desc_nulls_first)
+      print(by_last_name_nulls_last)
+
+      Result:
+      "name"
+      "email" ASC
+      "username" DESC NULLS FIRST
+      "last_name" NULLS LAST
     """
-    SELECT select_list
-    FROM table_expression
-    ORDER BY sort_expression1 [ASC | DESC] [NULLS { FIRST | LAST }]
-             [, sort_expression2 [ASC | DESC] [NULLS { FIRST | LAST }] ...]
+    stmt = "{column}"
+    params = {
+        "column": sql.Identifier(column),
+    }
+    if order:
+        stmt += " {column_ordering}"
+        params["column_ordering"] = sql.SQL(order)
+    if nulls:
+        stmt += " NULLS {nulls_ordering}"
+        params["nulls_ordering"] = sql.SQL(nulls)
+    return sql.SQL(stmt).format(**params)
+
+
+def commas(*composed_list: sql.Composed) -> sql.Composed:
+    """Separates psycopg.sql.Composed with commas.
+
+    Args:
+      *composed_list: A list with psycopg.sql.Composed items.
+
+    Returns:
+      A list of psycopg.sql.Composed items separated with commas.
     """
-    ...
+    return sql.SQL(",").join(composed_list)
 
 
 def insert(
@@ -124,39 +168,39 @@ def insert_many(
 
 def select_by_pk(
     table: str,
-    pk_column: tuple[str, ...],
+    pk_column: str,
     columns: tuple[str, ...],
-    named_ph=True,
+    named_phs=True,
 ) -> sql.Composed:
     """It returns only 1 record."""
-    return sql.SQL("SELECT {columns} FROM {table} WHERE {pk_column} = {ph}").format(
+    return sql.SQL("SELECT {columns} FROM {table} WHERE {pk_column} = {phs}").format(
         columns=csidentifiers(columns),
         table=sql.Identifier(table),
         pk_column=sql.Identifier(pk_column),
-        ph=sql.Placeholder(pk_column) if named_ph else sql.Placeholder(),
+        phs=sql.Placeholder(pk_column) if named_phs else sql.Placeholder(),
     )
 
 
 def select_many_by_pk(
     table: str,
-    pk_column: tuple[str, ...],
+    pk_column: str,
     columns: tuple[str, ...],
     order_by: Optional[sql.Composable] = None,
     limit: Optional[int] = None,
     offset: Optional[int] = None,
-    named_ph=True,
+    named_phs=True,
 ) -> sql.Composed:
     """
     It returns more than 1 record, so records must be:
     - orderable
     - paginable
     """
-    stmt = "SELECT {columns} FROM {table} WHERE {pk_column} = ANY({ph})"
+    stmt = "SELECT {columns} FROM {table} WHERE {pk_column} = ANY({phs})"
     params = {
         "columns": csidentifiers(columns),
         "table": sql.Identifier(table),
         "pk_column": sql.Identifier(pk_column),
-        "ph": sql.Placeholder(pk_column) if named_ph else sql.Placeholder(),
+        "phs": sql.Placeholder(pk_column) if named_phs else sql.Placeholder(),
     }
     if order_by:
         stmt += " ORDER BY {order_by}"
@@ -172,12 +216,12 @@ def select_many_by_pk(
 
 def select_many(
     table: str,
-    pk_column: tuple[str, ...],
+    pk_column: str,
     columns: tuple[str, ...],
     order_by: Optional[sql.Composable] = None,
     limit: Optional[int] = None,
     offset: Optional[int] = None,
-    named_ph=True,
+    named_phs=True,
 ) -> sql.Composed:
     """
     It returns more than 1 record, so records must be:
@@ -190,7 +234,7 @@ def select_by_cpk(
     table: str,
     pk_columns: tuple[str, ...],
     columns: tuple[str, ...],
-    named_ph=True,
+    named_phs=True,
 ) -> sql.Composed:
     """It returns only 1 record."""
     return sql.SQL(
@@ -199,7 +243,7 @@ def select_by_cpk(
         columns=csidentifiers(columns),
         table=sql.Identifier(table),
         pk_columns=csidentifiers(pk_columns),
-        phs=csplaceholders(pk_columns, named_phs=named_ph),
+        phs=csplaceholders(pk_columns, named_phs=named_phs),
     )
 
 
@@ -233,4 +277,80 @@ def select_many_by_cpk(
     if offset:
         stmt += " OFFSET {offset}"
         params["offset"] = sql.Literal(offset)
+    return sql.SQL(stmt).format(**params)
+
+
+def delete_by_pk(
+    table: str,
+    pk_column: str,
+    columns: tuple[str, ...],
+    returning=False,
+    named_phs=True,
+) -> sql.Composed:
+    stmt = "DELETE FROM {table} WHERE {pk_column} = {phs}"
+    params = {
+        "table": sql.Identifier(table),
+        "pk_column": sql.Identifier(pk_column),
+        "phs": sql.Placeholder(pk_column) if named_phs else sql.Placeholder(),
+    }
+    if returning:
+        stmt += " RETURNING {columns}"
+        params["columns"] = csidentifiers(columns)
+    return sql.SQL(stmt).format(**params)
+
+
+def delete_many_by_pk(
+    table: str,
+    pk_column: str,
+    columns: tuple[str, ...],
+    returning=False,
+    named_phs=True,
+) -> sql.Composed:
+    stmt = "DELETE FROM {table} WHERE {pk_column} = ANY({phs})"
+    params = {
+        "table": sql.Identifier(table),
+        "pk_column": sql.Identifier(pk_column),
+        "phs": sql.Placeholder(pk_column) if named_phs else sql.Placeholder(),
+    }
+    if returning:
+        stmt += " RETURNING {columns}"
+        params["columns"] = csidentifiers(columns)
+    return sql.SQL(stmt).format(**params)
+
+
+def delete_by_cpk(
+    table: str,
+    pk_columns: tuple[str, ...],
+    columns: tuple[str, ...],
+    returning=False,
+    named_phs=True,
+) -> sql.Composed:
+    stmt = "DELETE FROM {table} WHERE ({pk_columns}) = ({phs})"
+    params = {
+        "table": sql.Identifier(table),
+        "pk_columns": csidentifiers(pk_columns),
+        "phs": csplaceholders(pk_columns, named_phs=named_phs),
+    }
+    if returning:
+        stmt += " RETURNING {columns}"
+        params["columns"] = csidentifiers(columns)
+    return sql.SQL(stmt).format(**params)
+
+
+def delete_many_by_cpk(
+    table: str,
+    pk_columns: tuple[str, ...],
+    columns: tuple[str, ...],
+    qty=1,
+    returning=False,
+) -> sql.Composed:
+    stmt = "DELETE FROM {table} WHERE ({pk_columns}) IN ({phs})"
+    params = {
+        "table": sql.Identifier(table),
+        "pk_columns": csidentifiers(pk_columns),
+        "phs": rows_with_phs(qty, len(pk_columns)),
+    }
+    if returning:
+        stmt += " RETURNING {returning}"
+        params["returning"] = csidentifiers(columns)
     return sql.SQL(stmt).format(**params)

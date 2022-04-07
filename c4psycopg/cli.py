@@ -2,7 +2,7 @@
 
 
 def main():
-    print("e4psycopg - queries for psycopg")
+    print("c4psycopg - CRUDs for psycopg!")
 
 
 if __name__ == "__main__":

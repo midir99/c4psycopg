@@ -4,10 +4,10 @@ import itertools
 from typing import Optional, Union
 
 import psycopg
-from psycopg.rows import Row, RowFactory
 from psycopg import sql
+from psycopg.rows import Row, RowFactory
 
-from .. import gqueries
+from .. import queries
 from . import base, utils
 
 
@@ -35,16 +35,16 @@ class EntityManager:
         self.columns = (pk,) + columns
         self.row_factory = row_factory or psycopg.rows.dict_row
 
-        self._insert_query = gqueries.insert(
+        self._insert_query = queries.insert(
             self.table,
             self.columns,
             returning=True,
         )
-        self._find_by_pk_query = gqueries.select_by_pk(
+        self._find_by_pk_query = queries.select_by_pk(
             self.table,
             self.pk,
             self.columns,
-            named_ph=False,
+            named_phs=False,
         )
 
     def explain(self) -> str:
@@ -91,9 +91,7 @@ class EntityManager:
                     lambda e: utils.entity2tuple(self.columns, e), entities
                 )
                 values = itertools.chain(tuple_entities)
-                query = gqueries.insert_many(
-                    self.table, self.columns, qty=len(entities)
-                )
+                query = queries.insert_many(self.table, self.columns, qty=len(entities))
                 cur.execute(query, values)
                 r = cur.fetchall()
             else:
@@ -126,14 +124,14 @@ class EntityManager:
         offset: Optional[int] = None,
         row_factory: Optional[RowFactory[Row]] = None,
     ) -> list[Row]:
-        find_many_by_pk_query = gqueries.select_many_by_pk(
+        find_many_by_pk_query = queries.select_many_by_pk(
             self.table,
             self.pk,
             self.columns,
             order_by=order_by,
             limit=limit,
             offset=offset,
-            named_ph=False,
+            named_phs=False,
         )
         with conn.cursor(row_factory=row_factory) as cur:
             cur.execute(find_many_by_pk_query, pk_list)

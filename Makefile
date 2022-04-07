@@ -12,12 +12,12 @@ coverage:
 
 
 format:
-	$(PYTHON) -m black e4psycopg tests
+	$(PYTHON) -m black c4psycopg tests
 	$(PYTHON) -m isort .
 
 
 lint:
-	$(PYTHON) -m pylint e4psycopg
+	$(PYTHON) -m pylint c4psycopg
 
 
 test:
