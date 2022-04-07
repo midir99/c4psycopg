@@ -50,14 +50,21 @@ class EntityManager:
     def explain(self) -> str:
         """Returns a string that describes the queries used to operate the database."""
 
+    def add_defaults(self, entity: base.Entity) -> base.Entity:
+        entity.update(utils.entity_defaults(self.columns, entity.keys()))
+        return entity
+
     @utils.default_row_factory
     def create(
         self,
         entity: base.Entity,
         conn: psycopg.Connection,
         *,
+        add_defaults=True,
         row_factory: Optional[RowFactory[Row]] = None,
     ) -> Row:
+        if add_defaults:
+            entity = self.add_defaults(entity)
         with conn.cursor(row_factory=row_factory) as cur:
             cur.execute(self._insert_query, entity)
             result = cur.fetchone()
@@ -70,13 +77,16 @@ class EntityManager:
         entities: tuple[base.Entity, ...],
         conn: psycopg.Connection,
         *,
-        returning=False,
-        row_factory=None,
-    ) -> Union[int, tuple[Row, ...]]:
-        # TODO: Refactor when psycopg 3.1 is released and using
-        # cursor.executemany(..., returning=True) is available.
+        add_defaults=True,
+        returning=True,
+        row_factory: Optional[RowFactory[Row]] = None,
+    ) -> Union[int, list[Row]]:
+        if add_defaults:
+            entities = map(self.add_defaults, entities)
         with conn.cursor(row_factory=row_factory) as cur:
             if returning:
+                # TODO: Refactor when psycopg 3.1 is released and using
+                # cursor.executemany(..., returning=True) is available.
                 tuple_entities = map(
                     lambda e: utils.entity2tuple(self.columns, e), entities
                 )
@@ -115,7 +125,7 @@ class EntityManager:
         limit: Optional[int] = None,
         offset: Optional[int] = None,
         row_factory: Optional[RowFactory[Row]] = None,
-    ) -> tuple[Row, ...]:
+    ) -> list[Row]:
         find_many_by_pk_query = gqueries.select_many_by_pk(
             self.table,
             self.pk,

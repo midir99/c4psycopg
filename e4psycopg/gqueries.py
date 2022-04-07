@@ -1,7 +1,10 @@
 import functools
-from typing import Optional
+from typing import Literal, Optional
 
 from psycopg import sql
+
+COLUMNS_ORDERING = Literal["ASC", "DESC"]
+NULLS_ORDERING = Literal["FIRST", "LAST"]
 
 
 @functools.cache
@@ -68,6 +71,21 @@ def csidentifiers(columns: tuple[str, ...]) -> sql.Composed:
       "username","email"
     """
     return sql.SQL(",").join(map(sql.Identifier, columns))
+
+
+@functools.cache
+def ob(
+    column: str,
+    ordering: Optional[COLUMNS_ORDERING] = None,
+    nulls: Optional[NULLS_ORDERING] = None,
+) -> sql.Composed:
+    """
+    SELECT select_list
+    FROM table_expression
+    ORDER BY sort_expression1 [ASC | DESC] [NULLS { FIRST | LAST }]
+             [, sort_expression2 [ASC | DESC] [NULLS { FIRST | LAST }] ...]
+    """
+    ...
 
 
 def insert(
