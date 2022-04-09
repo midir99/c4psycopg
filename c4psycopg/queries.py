@@ -1,10 +1,22 @@
 import functools
-from typing import Literal, Optional
+from typing import Iterable, Literal, Optional
 
 from psycopg import sql
 
 COLUMNS_ORDER = Literal["ASC", "DESC"]
 NULLS_ORDER = Literal["FIRST", "LAST"]
+
+
+def commas(*composed_list: sql.Composed) -> sql.Composed:
+    """Separates psycopg.sql.Composed with commas.
+
+    Args:
+      *composed_list: A list with psycopg.sql.Composed items.
+
+    Returns:
+      A list of psycopg.sql.Composed items separated with commas.
+    """
+    return sql.SQL(",").join(composed_list)
 
 
 @functools.cache
@@ -29,29 +41,130 @@ def rows_with_phs(rows=1, phs=1) -> sql.Composed:
 
 
 @functools.cache
-def csplaceholders(columns: tuple[str, ...], named_phs=True) -> sql.Composed:
-    """Generates a psycopg.sql.Composed of Comma Separated Placeholders.
+def rows_with_phs_and_defaults(
+    columns: tuple[str, ...],
+    defaults_per_entity: tuple[tuple[int, ...], ...],
+) -> sql.Composed:
+    """Returns PostgreSQL ROWs literals with placeholders and DEFAULT keywords.
 
     Args:
-      columns: a tuple containing the names of columns.
-      named_phs: If True placeholders will be named placeholders (%(username)s),
-      otherwise they will be simple placeholders (%s).
+      columns: A tuple containing the names of the columns.
+      defaults_per_entity: A tuple containing tuples, each tuple must contain the column
+        names that will be replaced with placeholders, otherwise they will be replaced
+        by the DEFAULT keyword.
 
     Returns:
-      A psycopg.sql.Composed with placeholders, here you can see an example:
+      A psycopg.sql.Composed, here you can see an example:
 
-      csphs_named = csidentifiers(("username", "email"), named_phs=True)
-      csphs_simple = csidentifiers(("username", "email"), named_phs=False)
-      print(csphs_named.as_string(conn))
-      print(csphs_simple.as_string(conn))
+      columns = ("customerid", "name", "email")
+      defaults_per_entity = (
+          ("customerid",),
+          ("email", "customerid"),
+          (),
+      )
+      composed = rows_with_phs_and_defaults(columns, defaults_per_entity)
+      print(composed.as_string(conn))
+
+      Result:
+      (DEFAULT,%s,%s),(DEFAULT,%s,DEFAULT),(%s,%s,%s)
+    """
+    return sql.SQL(",").join(
+        (
+            sql.SQL("({})").format(
+                sql.SQL(",").join(
+                    (
+                        sql.SQL("DEFAULT") if column in defaults else sql.Placeholder()
+                        for column in columns
+                    )
+                )
+            )
+            for defaults in defaults_per_entity
+        )
+    )
+
+
+@functools.cache
+def columns_with_phs(columns: tuple[str, ...], named_phs=True) -> sql.Composed:
+    """Generates a psycopg.sql.Composed like "col0"=%(col0)s,"col1"=%(col1)s,...
+
+    Args:
+      columns: A tuple containing the names of the columns that will be used to generate
+        the psycopg.sql.Composed.
+      named_phs: If True placeholders will be named placeholders (%(col0)s),
+        otherwise they will be simple placeholders (%s).
+
+    Returns:
+      A psycopg.sql.Composed, here you can see an example:
+
+      columns = ("username", "email", "first_name")
+      query1 = columns_with_phs(columns)
+      query2 = columns_with_phs(columns, named_phs=False)
+      print(query1.as_string(conn))
+      print(query2.as_string(conn))
+
+      Result:
+      "username"=%(username)s,"email"=%(email)s,"first_name"=%(first_name)s
+      "username"=%s,"email"=%s,"first_name"=%s
+    """
+    return sql.SQL(",").join(
+        (
+            sql.SQL("{}={}").format(
+                sql.Identifier(column),
+                sql.Placeholder(column) if named_phs else sql.Placeholder(),
+            )
+            for column in columns
+        )
+    )
+
+
+@functools.cache
+def csplaceholders(
+    columns: tuple[str],
+    defaults: Optional[tuple[str]] = None,
+    named_phs=True,
+) -> sql.Composed:
+    """
+    Generates a psycopg.sql.Composed of Comma Separated Placeholders and PostgreSQL
+    DEFAULT keywords.
+
+    Args:
+      columns: An iterable containing the names of columns.
+      defaults: An iterable containing the names of the columns that will be replaced
+        with a PostgreSQL DEFAULT keyword instead of a placeholder.
+      named_phs: If True placeholders will be named placeholders (%(username)s),
+        otherwise they will be simple placeholders (%s).
+
+    Returns:
+      A psycopg.sql.Composed with placeholders and DEFAULT keywords, here you can see an
+      example:
+
+      ids1 = csidentifiers(("username", "email"), named_phs=True)
+      ids2 = csidentifiers(("username", "email"), named_phs=False)
+      ids3 = csidentifiers(("username", "email"), defaults=("email",), named_phs=True)
+      print(ids1.as_string(conn))
+      print(ids2.as_string(conn))
+      print(ids3.as_string(conn))
 
       Result:
       %(username)s,%(email)s
       %s,%s
+      %(username)s,DEFAULT
     """
+    if defaults is None:
+        defaults = ()
     if named_phs:
-        return sql.SQL(",").join(map(sql.Placeholder, columns))
-    return sql.SQL(",").join((sql.Placeholder(),) * len(columns))
+        return sql.SQL(",").join(
+            (
+                sql.SQL("DEFAULT") if column in defaults else sql.Placeholder(column)
+                for column in columns
+            )
+        )
+    return sql.SQL(",").join(
+        (
+            sql.SQL("DEFAULT") if column in defaults else sql.Placeholder()
+            for column in columns
+        )
+    )
 
 
 @functools.cache
@@ -120,21 +233,11 @@ def ob(
     return sql.SQL(stmt).format(**params)
 
 
-def commas(*composed_list: sql.Composed) -> sql.Composed:
-    """Separates psycopg.sql.Composed with commas.
-
-    Args:
-      *composed_list: A list with psycopg.sql.Composed items.
-
-    Returns:
-      A list of psycopg.sql.Composed items separated with commas.
-    """
-    return sql.SQL(",").join(composed_list)
-
-
+@functools.cache
 def insert(
     table: str,
     columns: tuple[str, ...],
+    defaults: Optional[tuple[str, ...]] = None,
     returning=False,
     named_phs=True,
 ) -> sql.Composed:
@@ -142,7 +245,7 @@ def insert(
     params = {
         "table": sql.Identifier(table),
         "columns": csidentifiers(columns),
-        "phs": csplaceholders(columns, named_phs=named_phs),
+        "phs": csplaceholders(columns, defaults=defaults, named_phs=named_phs),
     }
     if returning:
         stmt += " RETURNING {columns}"
@@ -153,13 +256,16 @@ def insert_many(
     table: str,
     columns: tuple[str, ...],
     qty=1,
+    defaults_per_entity: Optional[tuple[tuple[str, ...], ...]] = None,
     returning=False,
 ) -> sql.Composed:
     stmt = "INSERT INTO {table} ({columns}) VALUES {phs}"
     params = {
         "table": sql.Identifier(table),
         "columns": csidentifiers(columns),
-        "phs": rows_with_phs(qty, len(columns)),
+        "phs": rows_with_phs_and_defaults(columns, defaults_per_entity)
+        if defaults_per_entity
+        else rows_with_phs(qty, len(columns)),
     }
     if returning:
         stmt += " RETURNING {columns}"
@@ -214,20 +320,20 @@ def select_many_by_pk(
     return sql.SQL(stmt).format(**params)
 
 
-def select_many(
-    table: str,
-    pk_column: str,
-    columns: tuple[str, ...],
-    order_by: Optional[sql.Composable] = None,
-    limit: Optional[int] = None,
-    offset: Optional[int] = None,
-    named_phs=True,
-) -> sql.Composed:
-    """
-    It returns more than 1 record, so records must be:
-    - orderable
-    - paginable
-    """
+# def select_many(
+#     table: str,
+#     pk_column: str,
+#     columns: tuple[str, ...],
+#     order_by: Optional[sql.Composable] = None,
+#     limit: Optional[int] = None,
+#     offset: Optional[int] = None,
+#     named_phs=True,
+# ) -> sql.Composed:
+#     """
+#     It returns more than 1 record, so records must be:
+#     - orderable
+#     - paginable
+#     """
 
 
 def select_by_cpk(
@@ -280,11 +386,87 @@ def select_many_by_cpk(
     return sql.SQL(stmt).format(**params)
 
 
-def delete_by_pk(
+def update_by_pk(
     table: str,
     pk_column: str,
     columns: tuple[str, ...],
     returning=False,
+    named_phs=True,
+) -> sql.Composed:
+    stmt = "UPDATE {table} SET {columns_values} WHERE {pk_column} = {phs}"
+    params = {
+        "table": sql.Identifier(table),
+        "columns_values": columns_with_phs(columns, named_phs=named_phs),
+        "pk_column": sql.Identifier(pk_column),
+        "phs": sql.Placeholder(pk_column) if named_phs else sql.Placeholder(),
+    }
+    if returning:
+        stmt += " RETURNING {returning}"
+        params["returning"] = csidentifiers(columns)
+    return sql.SQL(stmt).format(**params)
+
+
+def update_many_by_pk(
+    table: str,
+    pk_column: str,
+    columns: tuple[str, ...],
+    returning=False,
+    named_phs=True,
+) -> sql.Composed:
+    stmt = "UPDATE {table} SET {columns_values} WHERE {pk_column} = ANY({phs})"
+    params = {
+        "table": sql.Identifier(table),
+        "columns_values": columns_with_phs(columns, named_phs=named_phs),
+        "pk_column": sql.Identifier(pk_column),
+        "phs": sql.Placeholder(pk_column) if named_phs else sql.Placeholder(),
+    }
+    if returning:
+        stmt += " RETURNING {returning}"
+        params["returning"] = csidentifiers(columns)
+    return sql.SQL(stmt).format(**params)
+
+
+def mupdate_many_by_pk():
+    pass
+
+
+def update_by_cpk():
+    pass
+
+
+def update_many_by_cpk():
+    pass
+
+
+def mupdate_many_by_cpk():
+    pass
+
+
+# You can use the update with to update many entities, to do the mupdate
+# WITH update_data AS (
+# 	VALUES (3, 'Luisa Tamales', 31) --,
+# 	       -- (2, 'Georgina Marrazo', 67)
+# )
+# UPDATE customer
+#    SET name = update_data.column2,
+# 	   age = update_data.column3
+#    FROM update_data
+#   WHERE customerid = update_data.column1
+# RETURNING customer.*;
+
+
+# THERE MUST BE 2 TYPES OF update_many
+# INDIVIDUAL update, you pass all the entities, the update is realized using the entity
+# pk, individual update methods will be
+# NORMAL update, you pass all the ids and only 1 entity, all the identities that have
+# those ids must be updated with the values of that body
+
+
+def delete_by_pk(
+    table: str,
+    pk_column: str,
+    returning=False,
+    columns: Optional[tuple[str, ...]] = None,
     named_phs=True,
 ) -> sql.Composed:
     stmt = "DELETE FROM {table} WHERE {pk_column} = {phs}"
@@ -294,6 +476,8 @@ def delete_by_pk(
         "phs": sql.Placeholder(pk_column) if named_phs else sql.Placeholder(),
     }
     if returning:
+        if columns is None:
+            raise ValueError("If returning is True, columns must be specified.")
         stmt += " RETURNING {columns}"
         params["columns"] = csidentifiers(columns)
     return sql.SQL(stmt).format(**params)
@@ -302,8 +486,8 @@ def delete_by_pk(
 def delete_many_by_pk(
     table: str,
     pk_column: str,
-    columns: tuple[str, ...],
     returning=False,
+    columns: Optional[tuple[str, ...]] = None,
     named_phs=True,
 ) -> sql.Composed:
     stmt = "DELETE FROM {table} WHERE {pk_column} = ANY({phs})"
@@ -313,6 +497,8 @@ def delete_many_by_pk(
         "phs": sql.Placeholder(pk_column) if named_phs else sql.Placeholder(),
     }
     if returning:
+        if columns is None:
+            raise ValueError("If returning is True, columns must be specified.")
         stmt += " RETURNING {columns}"
         params["columns"] = csidentifiers(columns)
     return sql.SQL(stmt).format(**params)
@@ -321,8 +507,8 @@ def delete_many_by_pk(
 def delete_by_cpk(
     table: str,
     pk_columns: tuple[str, ...],
-    columns: tuple[str, ...],
     returning=False,
+    columns: Optional[tuple[str, ...]] = None,
     named_phs=True,
 ) -> sql.Composed:
     stmt = "DELETE FROM {table} WHERE ({pk_columns}) = ({phs})"
@@ -332,6 +518,8 @@ def delete_by_cpk(
         "phs": csplaceholders(pk_columns, named_phs=named_phs),
     }
     if returning:
+        if columns is None:
+            raise ValueError("If returning is True, columns must be specified.")
         stmt += " RETURNING {columns}"
         params["columns"] = csidentifiers(columns)
     return sql.SQL(stmt).format(**params)
@@ -340,9 +528,9 @@ def delete_by_cpk(
 def delete_many_by_cpk(
     table: str,
     pk_columns: tuple[str, ...],
-    columns: tuple[str, ...],
     qty=1,
     returning=False,
+    columns: Optional[tuple[str, ...]] = None,
 ) -> sql.Composed:
     stmt = "DELETE FROM {table} WHERE ({pk_columns}) IN ({phs})"
     params = {
@@ -351,6 +539,8 @@ def delete_many_by_cpk(
         "phs": rows_with_phs(qty, len(pk_columns)),
     }
     if returning:
+        if columns is None:
+            raise ValueError("If returning is True, columns must be specified.")
         stmt += " RETURNING {returning}"
         params["returning"] = csidentifiers(columns)
     return sql.SQL(stmt).format(**params)

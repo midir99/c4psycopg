@@ -1,27 +1,36 @@
-from typing import Any, Optional, Protocol, TypeVar, Union
+from typing import Any, Callable, Optional, Protocol, TypeVar, Union
 
 from psycopg.rows import Row, RowFactory
 
 Entity = dict[str, Any]
 PK = Union[int, str]
-T = TypeVar("T")
+PKType = TypeVar("PKType")
 
 
-class EMProto(Protocol):
+class EMProto(Protocol[PKType, Row]):
     """Defines the attributes and methods that Entity Manager classes must implement."""
 
     table: str
-    pk: T
-    columns: tuple[str, ...]
+    pk: PKType
+    columns: frozenset[str]
+    defaults: dict[str, Callable[..., Any]]
     row_factory: RowFactory[Row]
 
-    def explain(self) -> str:
+    def count(self) -> int:
         ...
 
-    def add_defaults(self, entity) -> Entity:
+    def add_defaults(self, entity) -> None:
         ...
 
-    def create(self, entity, conn, *, add_defaults=True, row_factory=None) -> Row:
+    def create(
+        self,
+        entity,
+        conn,
+        *,
+        returning=True,
+        add_defaults=True,
+        row_factory=None,
+    ) -> Union[int, Row]:
         ...
 
     def create_many(
@@ -29,8 +38,8 @@ class EMProto(Protocol):
         entities,
         conn,
         *,
-        add_defaults=True,
         returning=True,
+        add_defaults=True,
         row_factory=None,
     ) -> Union[int, list[Row]]:
         ...
@@ -59,5 +68,10 @@ class EMProto(Protocol):
     ) -> list[Row]:
         ...
 
-    def delete_by_id(self, pk, conn, *, row_factory=None) -> Optional[Row]:
+    def delete_by_pk(self, pk, conn, *, row_factory=None) -> Optional[Row]:
+        ...
+
+    def delete_many_by_pk(
+        self, pk_list, conn, *, returning=True, row_factory=None
+    ) -> Union[int, list[Row]]:
         ...

@@ -26,12 +26,13 @@ UPDATE store SET name = %(name)s WHERE id = %(store_id)s;
 INSERT INTO customer (first_name, email) VALUES (%s, %s);
 """
 
-import re
 from collections.abc import Iterable
 
-_QUERY_NAME_DEFINITION_PATTERN = re.compile(r"--\s*name\s*:\s*")
-_DOC_COMMENT_PATTERN = re.compile(r"\s*--\s*(.*)$")
-_VALID_QUERY_NAME_PATTERN = re.compile(r"^\w+$")
+from .patterns import (
+    QUERY_NAME_DEFINITION_PATTERN,
+    DOC_COMMENT_PATTERN,
+    VALID_QUERY_NAME_PATTERN,
+)
 
 
 def _extract_sql(lines: Iterable[str]) -> str:
@@ -57,7 +58,7 @@ def _extract_sql(lines: Iterable[str]) -> str:
     return "".join(
         f"{sql_line}\n"
         for sql_line in lines
-        if not _DOC_COMMENT_PATTERN.match(sql_line)
+        if not DOC_COMMENT_PATTERN.match(sql_line)
     )
 
 
@@ -92,7 +93,7 @@ def _extract_query_name(sql_code: str) -> str:
          identifier.
     """
     query_name = sql_code.replace("-", "_")
-    if not _VALID_QUERY_NAME_PATTERN.match(query_name):
+    if not VALID_QUERY_NAME_PATTERN.match(query_name):
         raise ValueError(
             f'name must convert to valid Python identifier, got "{query_name}".'
         )
@@ -127,7 +128,7 @@ def from_str(sql_code: str) -> dict[str, str]:
       UPDATE store SET name = %(name)s WHERE id = %(store_id)s;
     """
     sql_queries = {}
-    stmts = _QUERY_NAME_DEFINITION_PATTERN.split(sql_code)
+    stmts = QUERY_NAME_DEFINITION_PATTERN.split(sql_code)
     for query_str in stmts[1:]:
         lines = [line.strip() for line in query_str.strip().splitlines()]
         query_name = _extract_query_name(lines[0])
