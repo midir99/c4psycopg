@@ -61,17 +61,32 @@ class EMProto(Protocol[PKType, Row]):
 
     def find_many(
         self,
-        pk_list,
+        where,
         conn,
         *,
+        order_by=None,
+        limit=None,
+        offset=None,
         row_factory=None,
     ) -> list[Row]:
         ...
 
-    def delete_by_pk(self, pk, conn, *, row_factory=None) -> Optional[Row]:
+    def delete_by_pk(
+        self,
+        pk,
+        conn,
+        *,
+        returning=True,
+        row_factory=None,
+    ) -> Union[int, Optional[Row]]:
         ...
 
     def delete_many_by_pk(
-        self, pk_list, conn, *, returning=True, row_factory=None
+        self,
+        pk_list,
+        conn,
+        *,
+        returning=True,
+        row_factory=None,
     ) -> Union[int, list[Row]]:
         ...

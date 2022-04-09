@@ -7,8 +7,8 @@ COLUMNS_ORDER = Literal["ASC", "DESC"]
 NULLS_ORDER = Literal["FIRST", "LAST"]
 
 
-def commas(*composed_list: sql.Composed) -> sql.Composed:
-    """Separates psycopg.sql.Composed with commas.
+def cs(*composed_list: sql.Composed) -> sql.Composed:
+    """Separates psycopg.sql.Composed with commas, its name stands for comma separate.
 
     Args:
       *composed_list: A list with psycopg.sql.Composed items.
@@ -21,7 +21,7 @@ def commas(*composed_list: sql.Composed) -> sql.Composed:
 
 @functools.cache
 def rows_with_phs(rows=1, phs=1) -> sql.Composed:
-    """Generates PostgreSQL ROWs literals with placeholders.
+    """Returns PostgreSQL ROWs literals with placeholders.
 
     Args:
       rows: The quantity of tuples to return.
@@ -85,7 +85,7 @@ def rows_with_phs_and_defaults(
 
 @functools.cache
 def columns_with_phs(columns: tuple[str, ...], named_phs=True) -> sql.Composed:
-    """Generates a psycopg.sql.Composed like "col0"=%(col0)s,"col1"=%(col1)s,...
+    """Returns a psycopg.sql.Composed like "col0"=%(col0)s,"col1"=%(col1)s,...
 
     Args:
       columns: A tuple containing the names of the columns that will be used to generate
@@ -124,7 +124,7 @@ def csplaceholders(
     named_phs=True,
 ) -> sql.Composed:
     """
-    Generates a psycopg.sql.Composed of Comma Separated Placeholders and PostgreSQL
+    Returns a psycopg.sql.Composed of Comma Separated Placeholders and PostgreSQL
     DEFAULT keywords.
 
     Args:
@@ -169,7 +169,7 @@ def csplaceholders(
 
 @functools.cache
 def csidentifiers(columns: tuple[str, ...]) -> sql.Composed:
-    """Generates a psycopg.sql.Composed of Comma Separated Identifiers.
+    """Returns a psycopg.sql.Composed of Comma Separated Identifiers.
 
     Args:
       columns: a tuple containing the names of columns.
@@ -192,7 +192,7 @@ def ob(
     order: Optional[COLUMNS_ORDER] = None,
     nulls: Optional[NULLS_ORDER] = None,
 ) -> sql.Composed:
-    """Generates a PostgreSQL sort expression to use it in an ORDER BY clause.
+    """Returns a PostgreSQL sort expression to use it in an ORDER BY clause.
 
     Args:
       column: The name of the column that will be used to generate the sort expression.

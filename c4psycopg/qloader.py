@@ -28,11 +28,8 @@ INSERT INTO customer (first_name, email) VALUES (%s, %s);
 
 from collections.abc import Iterable
 
-from .patterns import (
-    QUERY_NAME_DEFINITION_PATTERN,
-    DOC_COMMENT_PATTERN,
-    VALID_QUERY_NAME_PATTERN,
-)
+from .patterns import (DOC_COMMENT_PATTERN, QUERY_NAME_DEFINITION_PATTERN,
+                       VALID_QUERY_NAME_PATTERN)
 
 
 def _extract_sql(lines: Iterable[str]) -> str:
@@ -56,9 +53,7 @@ def _extract_sql(lines: Iterable[str]) -> str:
       A string containing the SQL code.
     """
     return "".join(
-        f"{sql_line}\n"
-        for sql_line in lines
-        if not DOC_COMMENT_PATTERN.match(sql_line)
+        f"{sql_line}\n" for sql_line in lines if not DOC_COMMENT_PATTERN.match(sql_line)
     )
 
 

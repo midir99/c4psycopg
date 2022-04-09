@@ -1,6 +1,6 @@
 import pytest
 
-from c4psycopg.queries import (columns_with_phs, commas, csidentifiers,
+from c4psycopg.queries import (columns_with_phs, cs, csidentifiers,
                                csplaceholders, delete_by_cpk, delete_by_pk,
                                delete_many_by_cpk, delete_many_by_pk, insert,
                                insert_many, ob, rows_with_phs,
@@ -22,8 +22,8 @@ from c4psycopg.queries import (columns_with_phs, commas, csidentifiers,
         ),
     ],
 )
-def test_commas(postgresql, obs, expected):
-    result = commas(*obs).as_string(postgresql)
+def test_cs(postgresql, obs, expected):
+    result = cs(*obs).as_string(postgresql)
     assert result == expected
 
 
@@ -301,7 +301,7 @@ def test_select_by_pk(postgresql, table, pk_column, columns, named_phs, expected
             "customer",
             "customerid",
             ("customerid", "name", "email"),
-            commas(ob("name"), ob("email", "ASC")),
+            cs(ob("name"), ob("email", "ASC")),
             None,
             None,
             False,
@@ -312,7 +312,7 @@ def test_select_by_pk(postgresql, table, pk_column, columns, named_phs, expected
             "customer",
             "customerid",
             ("customerid", "name", "email"),
-            commas(ob("name"), ob("email", "ASC")),
+            cs(ob("name"), ob("email", "ASC")),
             100,
             None,
             False,
@@ -323,7 +323,7 @@ def test_select_by_pk(postgresql, table, pk_column, columns, named_phs, expected
             "customer",
             "customerid",
             ("customerid", "name", "email"),
-            commas(ob("name"), ob("email", "ASC")),
+            cs(ob("name"), ob("email", "ASC")),
             100,
             500,
             False,
@@ -371,20 +371,20 @@ def test_select_many_by_pk(
     [
         (
             "course_grades",
-            ("quarter_id", "course_id", "student_id"),
-            ("quarter_id", "course_id", "student_id", "grades"),
+            ("quarterid", "courseid", "studentid"),
+            ("quarterid", "courseid", "studentid", "grades"),
             True,
-            'SELECT "quarter_id","course_id","student_id","grades" FROM "course_grades"'
-            ' WHERE ("quarter_id","course_id","student_id") = '
-            "(%(quarter_id)s,%(course_id)s,%(student_id)s)",
+            'SELECT "quarterid","courseid","studentid","grades" FROM "course_grades"'
+            ' WHERE ("quarterid","courseid","studentid") = '
+            "(%(quarterid)s,%(courseid)s,%(studentid)s)",
         ),
         (
             "course_grades",
-            ("quarter_id", "course_id", "student_id"),
-            ("quarter_id", "course_id", "student_id", "grades"),
+            ("quarterid", "courseid", "studentid"),
+            ("quarterid", "courseid", "studentid", "grades"),
             False,
-            'SELECT "quarter_id","course_id","student_id","grades" FROM "course_grades"'
-            ' WHERE ("quarter_id","course_id","student_id") = (%s,%s,%s)',
+            'SELECT "quarterid","courseid","studentid","grades" FROM "course_grades"'
+            ' WHERE ("quarterid","courseid","studentid") = (%s,%s,%s)',
         ),
     ],
 )

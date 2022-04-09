@@ -1,7 +1,6 @@
 """Entity Manager module."""
 
 import itertools
-from collections.abc import Iterable
 from typing import Any, Callable, Optional, Union
 
 import psycopg
@@ -28,13 +27,13 @@ class EntityManager:
         self,
         table: str,
         pk: str,
-        columns: Iterable[str],
+        columns: tuple[str, ...],
         defaults: Optional[dict[str, Callable[..., Any]]] = None,
         row_factory: Optional[RowFactory[Row]] = None,
     ) -> None:
         self.table = table
         self.pk = pk
-        self.columns = (pk,) + (*columns,)
+        self.columns = (pk,) + columns
         self.defaults = defaults or dict()
         self.row_factory = row_factory or psycopg.rows.dict_row
         self.cached_queries = {
@@ -50,37 +49,37 @@ class EntityManager:
                 returning=True,
                 named_phs=True,
             ),
-            "find_by_id": queries.select_by_pk(
+            "select_by_pk": queries.select_by_pk(
                 self.table,
                 self.pk,
                 self.columns,
-                named_phs=True,
+                named_phs=False,
             ),
-            "delete_by_id": queries.delete_by_pk(
+            "delete_by_pk": queries.delete_by_pk(
                 self.table,
                 self.pk,
                 returning=False,
-                named_phs=True,
+                named_phs=False,
             ),
-            "rdelete_by_id": queries.delete_by_pk(
+            "rdelete_by_pk": queries.delete_by_pk(
                 self.table,
                 self.pk,
                 returning=True,
                 columns=self.columns,
-                named_phs=True,
+                named_phs=False,
             ),
-            "delete_many_by_id": queries.delete_many_by_pk(
+            "delete_many_by_pk": queries.delete_many_by_pk(
                 self.table,
                 self.pk,
                 returning=False,
-                named_phs=True,
+                named_phs=False,
             ),
-            "rdelete_many_by_id": queries.delete_many_by_pk(
+            "rdelete_many_by_pk": queries.delete_many_by_pk(
                 self.table,
                 self.pk,
                 returning=True,
                 columns=self.columns,
-                named_phs=True,
+                named_phs=False,
             ),
         }
 
@@ -179,7 +178,7 @@ class EntityManager:
         row_factory: Optional[RowFactory[Row]] = None,
     ) -> Optional[Row]:
         with conn.cursor(row_factory=row_factory) as cur:
-            cur.execute(self._find_by_pk_query, (pk,))
+            cur.execute(self.cached_queries["select_by_pk"], (pk,))
             result = cur.fetchone()
         return result
 
@@ -194,7 +193,7 @@ class EntityManager:
         offset: Optional[int] = None,
         row_factory: Optional[RowFactory[Row]] = None,
     ) -> list[Row]:
-        find_many_by_pk_query = queries.select_many_by_pk(
+        q = queries.select_many_by_pk(
             self.table,
             self.pk,
             self.columns,
@@ -203,9 +202,8 @@ class EntityManager:
             offset=offset,
             named_phs=False,
         )
-        print(find_many_by_pk_query.as_string(conn))
         with conn.cursor(row_factory=row_factory) as cur:
-            cur.execute(find_many_by_pk_query, (pk_list,))
+            cur.execute(q, (pk_list,))
             result = cur.fetchall()
         return result
 
@@ -215,30 +213,37 @@ class EntityManager:
         pk: base.PK,
         conn: psycopg.Connection,
         *,
+        returning=True,
         row_factory: Optional[RowFactory[Row]] = None,
-    ) -> Optional[Row]:
+    ) -> Union[int, Optional[Row]]:
+        q = (
+            self.cached_queries["rdelete_by_pk"]
+            if returning
+            else self.cached_queries["delete_by_pk"]
+        )
         with conn.cursor(row_factory=row_factory) as cur:
-            cur.execute(self._delete_by_pk_query, (pk,))
-            result = cur.fetchone()
+            cur.execute(q, (pk,))
+            r = cur.fetchone() if returning else cur.rowcount
             conn.commit()
-        return result
+        return r
 
     @utils.default_row_factory
     def delete_many_by_pk(
         self,
-        pk_list: tuple[base.PK, ...],
+        pk_list: list[base.PK],
         conn: psycopg.Connection,
         *,
         returning=True,
         row_factory: Optional[RowFactory[Row]] = None,
     ) -> Union[int, list[Row]]:
+        q = (
+            self.cached_queries["rdelete_many_by_pk"]
+            if returning
+            else self.cached_queries["delete_many_by_pk"]
+        )
         with conn.cursor(row_factory=row_factory) as cur:
-            if returning:
-                cur.execute(self._delete_many_by_pk_query, pk_list)
-                r = cur.fetchall()
-            else:
-                cur.execute(self._delete_many_by_pk_nr_query, pk_list)
-                r = cur.rowcount
+            cur.execute(q, (pk_list,))
+            r = cur.fetchall() if returning else cur.rowcount
             conn.commit()
         return r
 
