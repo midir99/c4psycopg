@@ -1,10 +1,9 @@
 import functools
-from collections.abc import Awaitable, Container
+from collections.abc import Awaitable
 from typing import Any, Callable, TypeVar
 
 import psycopg
 import psycopg.rows
-from psycopg import sql
 from typing_extensions import Concatenate, ParamSpec
 
 from . import base
@@ -16,6 +15,66 @@ T = TypeVar("T")
 def entity2tuple(
     columns: tuple[str, ...], entity: base.Entity, incomplete=False
 ) -> tuple[Any, ...]:
+    """Returns a tuple containing the values of the Entity ordered according to columns.
+
+    Args:
+      columns: The columns of the Entity.
+      entity: An Entity (c4psycopg.em.base.Entity).
+      incomplete: If entity does not contain all the columns specified in columns, and
+        this incomplete=False this will raise a KeyError exception, but if
+        incomplete=True the exception won't be raised but the resulting tuple will not
+        contain the values for the columns that did not existed in entity.
+
+    Returns:
+      A tuple containing the values of the Entity ordered by columns. Here is an
+      example:
+
+      Example 1
+
+        columns = ("customerid", "email", "first_name", "last_name")
+        entity = {
+            "first_name": "Helena",
+            "email": "hjimenez@example.com",
+            "last_name": "Jimenez",
+            "customerid": 7821,
+        }
+        values = entity2tuple(columns, entity, incomplete=False)
+        print(values)
+
+        Result:
+        (7821, 'hjimenez@example.com', 'Helena', 'Jimenez')
+
+      Example 2
+
+        columns = ("customerid", "email", "first_name", "last_name")
+        entity = {
+            "first_name": "Helena",
+            "email": "hjimenez@example.com",
+            "customerid": 7821,
+        }
+        values = entity2tuple(columns, entity, incomplete=False)
+        print(values)
+
+        Result:
+        A KeyError exception would be thrown, since entity does not contain all the
+        required columns.
+
+      Example 3
+
+        columns = ("customerid", "email", "first_name", "last_name")
+        entity = {
+            "last_name": "Jimenez",
+            "email": "hjimenez@example.com",
+        }
+        values = entity2tuple(columns, entity, incomplete=True)
+        print(values)
+
+        Result:
+        ('hjimenez@example.com', 'Jimenez')
+
+    Raises:
+      KeyError, check description of incomplete argument for more details.
+    """
     if incomplete:
         return functools.reduce(
             lambda t, e: t + ((entity[e],) if e in entity else tuple()),
@@ -30,7 +89,15 @@ def default_row_factory(
 ) -> Callable[Concatenate[base.EMProto, P], T]:
     """
     Passes the EMProto.row_factory to the keyword argument "row_factory" of the
-    decorated function if it is None.
+    decorated function if it is None. If EMProto.row_factory is None,
+    psycopg.rows.dict_row is passed instead.
+
+    Args:
+      func: A method of an EMProto instance.
+
+    Returns:
+      A decorated function that ensures that a row_factory is passed in its
+      arguments.
     """
 
     @functools.wraps(func)
@@ -48,7 +115,15 @@ def async_default_row_factory(
 ) -> Callable[Concatenate[base.EMProto, P], Awaitable[T]]:
     """
     Passes the EMProto.row_factory to the keyword argument "row_factory" of the
-    decorated function if it is None.
+    decorated function if it is None. If EMProto.row_factory is None,
+    psycopg.rows.dict_row is passed instead. This is the asynchronous version.
+
+    Args:
+      func: An async method of an EMProto instance.
+
+    Returns:
+      A decorated async function that ensures that a row_factory is passed in its
+      arguments.
     """
 
     @functools.wraps(func)
