@@ -1,7 +1,9 @@
 import psycopg.rows
 import pytest
 
-from c4psycopg.ems.utils import (entity2tuple, default_row_factory, async_default_row_factory, missing_columns, missing_values)
+from c4psycopg.ems.utils import (async_default_row_factory,
+                                 default_row_factory, entity2tuple,
+                                 missing_columns, missing_values)
 
 
 @pytest.mark.parametrize(
@@ -29,7 +31,6 @@ from c4psycopg.ems.utils import (entity2tuple, default_row_factory, async_defaul
             False,
             None,
             True,
-
         ),
         (
             ("customerid", "email", "first_name", "last_name"),
@@ -77,6 +78,7 @@ def test_default_row_factory():
 
     bem = BarEntityManager(tuple_row)
     bem.foo()
+
 
 @pytest.mark.asyncio
 async def test_async_default_row_factory():
@@ -163,7 +165,7 @@ def test_missing_columns(incomplete_entity, entity_columns, expected):
                 "first_name": lambda: "Unknown first name",
                 "last_name": lambda: "Unknown last name",
                 "country": lambda: "Unknown country",
-                "age": lambda: "Unknown age",
+                "age": lambda: -1,
             },
             {},
         ),
@@ -181,11 +183,11 @@ def test_missing_columns(incomplete_entity, entity_columns, expected):
                 "first_name": lambda: "Unknown first name",
                 "last_name": lambda: "Unknown last name",
                 "country": lambda: "Unknown country",
-                "age": lambda: "Unknown age",
+                "age": lambda: -1,
             },
             {
                 "country": "Unknown country",
-                "age": "Unknown age",
+                "age": -1,
             },
         ),
         (
@@ -201,7 +203,7 @@ def test_missing_columns(incomplete_entity, entity_columns, expected):
                 "first_name": lambda: "Unknown first name",
                 "last_name": lambda: "Unknown last name",
                 "country": lambda: "Unknown country",
-                "age": lambda: "Unknown age",
+                "age": lambda: -1,
             },
             {
                 "email": "Unknown email",

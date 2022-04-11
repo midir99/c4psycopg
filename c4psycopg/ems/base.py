@@ -28,7 +28,7 @@ class EMProto(Protocol[PKType, Row]):
         conn,
         *,
         returning=True,
-        add_defaults=True,
+        use_defaults=True,
         row_factory=None,
     ) -> Union[int, Row]:
         ...
@@ -39,7 +39,7 @@ class EMProto(Protocol[PKType, Row]):
         conn,
         *,
         returning=True,
-        add_defaults=True,
+        use_defaults=True,
         row_factory=None,
     ) -> Union[int, list[Row]]:
         ...
@@ -61,7 +61,7 @@ class EMProto(Protocol[PKType, Row]):
 
     def find_many(
         self,
-        where,
+        condition,
         conn,
         *,
         order_by=None,
@@ -84,6 +84,26 @@ class EMProto(Protocol[PKType, Row]):
     def delete_many_by_pk(
         self,
         pk_list,
+        conn,
+        *,
+        returning=True,
+        row_factory=None,
+    ) -> Union[int, list[Row]]:
+        ...
+
+    def update_by_pk(
+        self,
+        entity,
+        conn,
+        *,
+        returning=True,
+        row_factory=None,
+    ) -> Union[int, Optional[Row]]:
+        ...
+
+    def update_many_by_pk(
+        self,
+        entities,
         conn,
         *,
         returning=True,

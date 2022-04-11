@@ -31,6 +31,8 @@ class EntityManager:
         defaults: Optional[dict[str, Callable[..., Any]]] = None,
         row_factory: Optional[RowFactory[Row]] = None,
     ) -> None:
+        if pk in columns:
+            raise ValueError("The pk must not be included in the columns.")
         self.table = table
         self.pk = pk
         self.columns = (pk,) + columns
@@ -107,6 +109,15 @@ class EntityManager:
                 named_phs=True,
             )
         else:
+            mc = utils.missing_columns(entity, self.columns)
+            if mc:
+                raise ValueError(
+                    "When use_defaults=False you must provide a value for all the "
+                    "columns used in the INSERT query ({columns}), the values for "
+                    'the columns "{mc}" were missing in the entity provided.'.format(
+                        columns=", ".join(self.columns), mc=", ".join(mc)
+                    )
+                )
             q = (
                 self.cached_queries["rinsert"]
                 if returning
@@ -145,25 +156,23 @@ class EntityManager:
             q = queries.insert_many(
                 self.table, self.columns, qty=len(entities), returning=returning
             )
+        try:
+            tuple_entities = map(
+                lambda e: utils.entity2tuple(self.columns, e, incomplete=use_defaults),
+                entities,
+            )
+        except KeyError as e:
+            mc = str(e).replace("'", "")
+            if mc in self.columns:
+                raise ValueError(
+                    "When use_defaults=False you must provide a value for all the "
+                    "columns used in the INSERT query ({columns}), the value for "
+                    'the column "{mc}" was missing in some of the entities '
+                    "provided.".format(columns=", ".join(self.columns), mc=mc)
+                ) from e
+            raise e from e
+        values = tuple(itertools.chain(tuple_entities))
         with conn.cursor(row_factory=row_factory) as cur:
-            try:
-                tuple_entities = map(
-                    lambda e: utils.entity2tuple(
-                        self.columns, e, incomplete=use_defaults
-                    ),
-                    entities,
-                )
-                values = tuple(itertools.chain(tuple_entities))
-            except KeyError as e:
-                mc = str(e).replace("'", "")
-                if mc in self.columns:
-                    raise ValueError(
-                        "When use_defaults=False you must provide a value for all the "
-                        "columns used in the INSERT query ({columns}), the value for "
-                        'the column "{mc}" was missing in some of the entities '
-                        "provided.".format(columns=", ".join(self.columns), mc=mc)
-                    ) from e
-                raise e from e
             cur.execute(q, values)
             r = cur.fetchall() if returning else cur.rowcount
             conn.commit()

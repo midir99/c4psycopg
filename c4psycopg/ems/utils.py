@@ -21,9 +21,9 @@ def entity2tuple(
       columns: The columns of the Entity.
       entity: An Entity (c4psycopg.em.base.Entity).
       incomplete: If entity does not contain all the columns specified in columns, and
-        this incomplete=False this will raise a KeyError exception, but if
-        incomplete=True the exception won't be raised but the resulting tuple will not
-        contain the values for the columns that did not existed in entity.
+        incomplete=False this will raise a KeyError exception, but if incomplete=True
+        the exception won't be raised but the resulting tuple will not contain the
+        values for the columns that did not exist in entity.
 
     Returns:
       A tuple containing the values of the Entity ordered by columns. Here is an

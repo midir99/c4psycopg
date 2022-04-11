@@ -9,6 +9,7 @@ CREATE TABLE customer (
     PRIMARY KEY (customerid)
 );
 
+-- Inserts 50 customer entities
 INSERT INTO customer (email,first_name,last_name,age)
 VALUES
   ('amaya.hudson8772@google.net','Amaya','Hudson',66),
@@ -73,6 +74,7 @@ CREATE TABLE course_grades (
     PRIMARY KEY (quarterid, courseid, studentid)
 );
 
+-- Inserts 50 course_grades entities
 INSERT INTO course_grades (quarterid,courseid,studentid,grades)
 VALUES
   (5,48,446,3),
